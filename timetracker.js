@@ -294,7 +294,6 @@ class TaskTimeTracker {
 
     renderTaskList(tasks) {
         const taskEntries = Object.entries(tasks);
-        
         if (taskEntries.length === 0) {
             this.taskList.innerHTML = `
                 <div class="no-tasks">
@@ -326,6 +325,7 @@ class TaskTimeTracker {
                             <div style="display:flex; align-items:center; gap:10px;">
                                 <div class="task-time">${this.formatTime(time)}</div>
                                 <button class="edit-btn" title="Edit">✏️</button>
+                                <button class="adjust-btn" title="Adjust">🛠️</button>
                             </div>
                         </div>
                         ${notesHtml}
@@ -335,39 +335,138 @@ class TaskTimeTracker {
 
         // Add event listeners to task items
         this.taskList.querySelectorAll('.task-item').forEach(item => {
-                // clicking the task selects it (for starting)
-                item.addEventListener('click', () => {
-                    // If this item is in edit mode, ignore clicks so it doesn't steal focus
-                    if (item.classList.contains('edit-mode')) return;
+            // clicking the task selects it (for starting)
+            item.addEventListener('click', () => {
+                // If this item is in edit or adjust mode, ignore clicks so it doesn't steal focus
+                if (item.classList.contains('edit-mode') || item.classList.contains('adjust-mode')) return;
+                const taskName = item.getAttribute('data-task-name');
+                this.selectTask(taskName);
+            });
+            // edit button: opens inline rename
+            const editBtn = item.querySelector('.edit-btn');
+            if (editBtn) {
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     const taskName = item.getAttribute('data-task-name');
-                    this.selectTask(taskName);
+                    this.enterEditMode(taskName, item);
                 });
-                // edit button: opens inline rename
-                const editBtn = item.querySelector('.edit-btn');
-                if (editBtn) {
-                    editBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const taskName = item.getAttribute('data-task-name');
-                        this.enterEditMode(taskName, item);
-                    });
-                }
+            }
+            // adjust button: opens inline adjust time
+            const adjustBtn = item.querySelector('.adjust-btn');
+            if (adjustBtn) {
+                adjustBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const taskName = item.getAttribute('data-task-name');
+                    this.enterAdjustMode(taskName, item);
+                });
+            }
+        });
+    }
+    // Inline adjust mode for task time
+    enterAdjustMode(taskName, itemElement) {
+        itemElement.classList.add('adjust-mode');
+        const storageKey = `tasks_${this.selectedDate}`;
+        const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        let data = tasks[taskName];
+        if (typeof data === 'number') data = { time: data, notes: [] };
+        const timeMs = typeof data === 'number' ? data : data.time;
+        const timeStr = this.formatTime(timeMs);
+
+        itemElement.innerHTML = `
+            <div class="task-header">
+                <div style="flex:1">
+                    <input class="adjust-time-input" value="${timeStr}" />
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <button class="btn-save">Save</button>
+                    <button class="btn-cancel">Cancel</button>
+                </div>
+            </div>
+        `;
+        const input = itemElement.querySelector('.adjust-time-input');
+        const saveBtn = itemElement.querySelector('.btn-save');
+        const cancelBtn = itemElement.querySelector('.btn-cancel');
+        input.focus();
+        input.select();
+
+        const finishSave = () => {
+            const newStr = input.value.trim();
+            const ms = this.parseTimeToMs(newStr);
+            if (ms === null) {
+                input.focus();
+                this.showToast('Invalid time format. Use HH:MM:SS');
+                return;
+            }
+            this.saveAdjustedTime(taskName, ms);
+        };
+        saveBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            finishSave();
+        });
+        cancelBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.loadTasksForDate();
+        });
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                finishSave();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                this.loadTasksForDate();
+            }
         });
     }
 
-    // Begin inline edit for a task (rename only, auto-merge if target exists)
-    enterEditMode(oldName, itemElement) {
-        // mark element as edit-mode
-        itemElement.classList.add('edit-mode');
+    // Save adjusted time for a task
+    saveAdjustedTime(taskName, ms) {
+        const storageKey = `tasks_${this.selectedDate}`;
+        const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        let data = tasks[taskName];
+        if (typeof data === 'number') data = { time: data, notes: [] };
+        data.time = ms;
+        tasks[taskName] = data;
+        localStorage.setItem(storageKey, JSON.stringify(tasks));
+        this.showToast('Task time adjusted');
+        this.loadTasksForDate();
+    }
 
-        // Fetch existing task data for the selected date
+    // Parse HH:MM:SS to ms
+    parseTimeToMs(str) {
+        const parts = str.split(':').map(Number);
+        if (parts.length !== 3 || parts.some(isNaN)) return null;
+        const [h, m, s] = parts;
+        if (h < 0 || m < 0 || m > 59 || s < 0 || s > 59) return null;
+        return ((h * 3600) + (m * 60) + s) * 1000;
+    }
+
+    // Inline edit mode for a task: rename and edit notes
+    enterEditMode(oldName, itemElement) {
+        itemElement.classList.add('edit-mode');
         const storageKey = `tasks_${this.selectedDate}`;
         const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
         let data = tasks[oldName];
         if (typeof data === 'number') data = { time: data, notes: [] };
+        const timeStr = this.formatTime(data.time);
 
-        const timeStr = this.formatTime(typeof data === 'number' ? data : data.time);
+        // Editable notes list
+        const notes = Array.isArray(data.notes) ? data.notes : [];
+        const notesHtml = `
+            <ul class="edit-notes-list">
+                ${notes.map((note, idx) => `
+                    <li class="edit-note-item" data-note-idx="${idx}">
+                        <span class="edit-note-meta">${note.timestamp ? this.escapeHtml(note.timestamp) : ''}${note.duration ? ' (' + this.escapeHtml(note.duration) + ')' : ''}</span>
+                        <input class="edit-note-text" type="text" value="${this.escapeHtml(note.text || '')}" />
+                        <button class="edit-note-delete" title="Delete note">🗑️</button>
+                    </li>
+                `).join('')}
+            </ul>
+            <div class="edit-note-add">
+                <input class="edit-note-add-input" type="text" placeholder="Add new note..." />
+                <button class="edit-note-add-btn">Add</button>
+            </div>
+        `;
 
-        // replace inner HTML with a minimal edit form (name + time display + actions)
         itemElement.innerHTML = `
             <div class="task-header">
                 <div style="flex:1">
@@ -381,37 +480,47 @@ class TaskTimeTracker {
                 <button class="btn-save">Save</button>
                 <button class="btn-cancel">Cancel</button>
             </div>
+            <div class="edit-notes-block">
+                <label style="font-size:13px; color:var(--text-secondary); margin-bottom:4px;">Notes:</label>
+                ${notesHtml}
+            </div>
         `;
 
-        const input = itemElement.querySelector('.edit-name-input');
+        const nameInput = itemElement.querySelector('.edit-name-input');
         const saveBtn = itemElement.querySelector('.btn-save');
         const cancelBtn = itemElement.querySelector('.btn-cancel');
+        nameInput.focus();
+        nameInput.select();
 
-        input.focus();
-        input.select();
-
+        // Save handler: rename and update notes
         const finishSave = () => {
-            const newName = input.value.trim();
+            const newName = nameInput.value.trim();
             if (!newName) {
-                input.focus();
+                nameInput.focus();
                 return;
             }
-            this.saveEdit(oldName, newName);
+            // Gather updated notes
+            const noteInputs = Array.from(itemElement.querySelectorAll('.edit-note-text'));
+            const updatedNotes = noteInputs.map((input, idx) => {
+                const note = notes[idx] || {};
+                return {
+                    ...note,
+                    text: input.value
+                };
+            }).filter(n => n.text && n.text.trim());
+            // Save
+            this.saveEditWithNotes(oldName, newName, updatedNotes);
         };
 
         saveBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             finishSave();
         });
-
         cancelBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            // re-render list to restore original UI
             this.loadTasksForDate();
         });
-
-        // keyboard shortcuts
-        input.addEventListener('keydown', (e) => {
+        nameInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 finishSave();
@@ -420,6 +529,88 @@ class TaskTimeTracker {
                 this.loadTasksForDate();
             }
         });
+
+        // Note delete buttons
+        itemElement.querySelectorAll('.edit-note-delete').forEach((btn, idx) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                notes.splice(idx, 1);
+                this.enterEditMode(oldName, itemElement);
+            });
+        });
+
+        // Add note
+        const addInput = itemElement.querySelector('.edit-note-add-input');
+        const addBtn = itemElement.querySelector('.edit-note-add-btn');
+        addBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const text = addInput.value.trim();
+            if (!text) {
+                addInput.focus();
+                return;
+            }
+            notes.push({
+                text,
+                timestamp: new Date().toLocaleTimeString(),
+                duration: null
+            });
+            this.enterEditMode(oldName, itemElement);
+        });
+        addInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addBtn.click();
+            }
+        });
+    }
+
+    // Save a rename edit and notes update, auto-merge if newName exists
+    saveEditWithNotes(oldName, newName, updatedNotes) {
+        if (!oldName) return;
+        const storageKey = `tasks_${this.selectedDate}`;
+        const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        let oldData = tasks[oldName];
+        if (oldData === undefined) return this.loadTasksForDate();
+        if (typeof oldData === 'number') oldData = { time: oldData, notes: [] };
+
+        // If newName equals oldName, just update notes
+        if (newName === oldName) {
+            oldData.notes = updatedNotes;
+            tasks[oldName] = oldData;
+            localStorage.setItem(storageKey, JSON.stringify(tasks));
+            this.loadTasksForDate();
+            return;
+        }
+
+        // If target exists, merge: sum times and concat notes
+        let targetData = tasks[newName];
+        if (targetData === undefined) {
+            // simple rename
+            oldData.notes = updatedNotes;
+            tasks[newName] = oldData;
+        } else {
+            if (typeof targetData === 'number') targetData = { time: targetData, notes: [] };
+            // merge
+            const merged = {
+                time: (targetData.time || 0) + (oldData.time || 0),
+                notes: (targetData.notes || []).concat(updatedNotes)
+            };
+            tasks[newName] = merged;
+        }
+        delete tasks[oldName];
+        localStorage.setItem(storageKey, JSON.stringify(tasks));
+
+        // If active task was renamed, update currentTask
+        if (this.currentTask === oldName) {
+            this.currentTask = newName;
+            if (this.currentTaskName) this.currentTaskName.textContent = newName;
+            if (this.taskInput) this.taskInput.value = newName;
+            this.updatePageTitle();
+        }
+        if (this.taskInput && this.taskInput.value === oldName) {
+            this.taskInput.value = newName;
+        }
+        this.loadTasksForDate();
     }
 
     // Save a rename edit, auto-merge if newName exists

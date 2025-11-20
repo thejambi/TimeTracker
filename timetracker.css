@@ -1,3 +1,68 @@
+.edit-mode .edit-notes-list {
+    margin-top: 12px;
+    padding: 0;
+    list-style: none;
+}
+.edit-mode .edit-note-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.edit-mode .edit-note-text {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1.5px solid var(--input-border);
+    border-radius: 7px;
+    font-size: 14px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+}
+.edit-mode .edit-note-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-right: 6px;
+    min-width: 90px;
+}
+.edit-mode .edit-note-delete {
+    background: transparent;
+    border: none;
+    color: #ff416c;
+    font-size: 15px;
+    cursor: pointer;
+    border-radius: 5px;
+    padding: 4px 7px;
+    margin-left: 2px;
+}
+.edit-mode .edit-note-delete:hover {
+    background: rgba(255,65,108,0.08);
+}
+.edit-mode .edit-note-add {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+}
+.edit-mode .edit-note-add input {
+    flex: 1;
+    padding: 7px 10px;
+    border: 1.5px solid var(--input-border);
+    border-radius: 7px;
+    font-size: 14px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+}
+.edit-mode .edit-note-add button {
+    background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+    color: white;
+    border: none;
+    border-radius: 7px;
+    padding: 7px 14px;
+    font-size: 14px;
+    cursor: pointer;
+}
+.edit-mode .edit-note-add button:hover {
+    background: linear-gradient(135deg, #56ab2f 0%, #56ab2f 100%);
+}
 :root {
     --bg-gradient-start: #2c3e50;
     --bg-gradient-end: #34495e;
@@ -446,6 +511,58 @@ body {
     font-size: 14px;
     padding: 6px;
     border-radius: 6px;
+}
+
+.task-header .adjust-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 6px;
+    border-radius: 6px;
+    margin-left: 2px;
+}
+.task-header .adjust-btn:hover {
+    color: var(--text-accent);
+    background: rgba(52,73,94,0.06);
+}
+
+.adjust-mode .adjust-time-input {
+    width: 100px;
+    padding: 8px 10px;
+    border: 2px solid var(--input-border);
+    border-radius: 8px;
+    margin-top: 8px;
+    font-size: 15px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    text-align: center;
+}
+.adjust-mode .adjust-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+.adjust-mode .btn-save {
+    background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: none;
+}
+.adjust-mode .btn-cancel {
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--input-border);
+}
+.task-item.adjust-mode {
+    border-color: #56ab2f;
+    box-shadow: 0 10px 30px rgba(86,171,47,0.10);
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
 }
 
 .task-header .edit-btn:hover {
