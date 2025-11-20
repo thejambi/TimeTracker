@@ -313,10 +313,14 @@ class TaskTimeTracker {
                 const time = typeof data === 'number' ? data : data.time;
                 const notes = typeof data === 'object' && data.notes ? data.notes : [];
 
-                const notesHtml = notes.length > 0 ?
-                    `<div class="task-notes">${notes.map(note =>
-                        `<strong>${note.timestamp} (${note.duration}):</strong>\n${this.escapeHtml(note.text)}`
-                    ).join('\n\n')}</div>` : '';
+                    const notesHtml = notes.length > 0 ?
+                        `<div class="task-notes">${notes.map(note => {
+                            let meta = '';
+                            if (note.timestamp) meta += this.escapeHtml(note.timestamp);
+                            if (note.duration && note.duration !== null) meta += ' (' + this.escapeHtml(note.duration) + ')';
+                            // Only show timestamp and duration if duration is not null
+                            return `<strong>${meta}</strong>\n${this.escapeHtml(note.text)}`;
+                        }).join('\n\n')}</div>` : '';
 
                 return `
                     <div class="task-item" data-task-name="${this.escapeHtml(name)}">
@@ -449,17 +453,24 @@ class TaskTimeTracker {
         if (typeof data === 'number') data = { time: data, notes: [] };
         const timeStr = this.formatTime(data.time);
 
-        // Editable notes list
-        const notes = Array.isArray(data.notes) ? data.notes : [];
-        const notesHtml = `
+        // Use a local copy of notes for mutation
+        let notes = Array.isArray(data.notes) ? data.notes.map(n => ({...n})) : [];
+
+        // Render notes list
+        const renderNotesHtml = () => `
             <ul class="edit-notes-list">
-                ${notes.map((note, idx) => `
-                    <li class="edit-note-item" data-note-idx="${idx}">
-                        <span class="edit-note-meta">${note.timestamp ? this.escapeHtml(note.timestamp) : ''}${note.duration ? ' (' + this.escapeHtml(note.duration) + ')' : ''}</span>
-                        <input class="edit-note-text" type="text" value="${this.escapeHtml(note.text || '')}" />
-                        <button class="edit-note-delete" title="Delete note">🗑️</button>
-                    </li>
-                `).join('')}
+                ${notes.map((note, idx) => {
+                    let meta = '';
+                    if (note.timestamp) meta += this.escapeHtml(note.timestamp);
+                    if (note.duration && note.duration !== null) meta += ' (' + this.escapeHtml(note.duration) + ')';
+                    return `
+                        <li class="edit-note-item" data-note-idx="${idx}">
+                            <span class="edit-note-meta">${meta}</span>
+                            <input class="edit-note-text" type="text" value="${this.escapeHtml(note.text || '')}" />
+                            <button class="edit-note-delete" title="Delete note">🗑️</button>
+                        </li>
+                    `;
+                }).join('')}
             </ul>
             <div class="edit-note-add">
                 <input class="edit-note-add-input" type="text" placeholder="Add new note..." />
@@ -467,101 +478,105 @@ class TaskTimeTracker {
             </div>
         `;
 
-        itemElement.innerHTML = `
-            <div class="task-header">
-                <div style="flex:1">
-                    <input class="edit-name-input" value="${this.escapeHtml(oldName)}" />
+        // Render the edit UI
+        const renderEditUI = () => {
+            itemElement.innerHTML = `
+                <div class="task-header">
+                    <div style="flex:1">
+                        <input class="edit-name-input" value="${this.escapeHtml(oldName)}" />
+                    </div>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <div class="task-time">${timeStr}</div>
+                    </div>
                 </div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <div class="task-time">${timeStr}</div>
+                <div class="edit-actions">
+                    <button class="btn-save">Save</button>
+                    <button class="btn-cancel">Cancel</button>
                 </div>
-            </div>
-            <div class="edit-actions">
-                <button class="btn-save">Save</button>
-                <button class="btn-cancel">Cancel</button>
-            </div>
-            <div class="edit-notes-block">
-                <label style="font-size:13px; color:var(--text-secondary); margin-bottom:4px;">Notes:</label>
-                ${notesHtml}
-            </div>
-        `;
+                <div class="edit-notes-block">
+                    <label style="font-size:13px; color:var(--text-secondary); margin-bottom:4px;">Notes:</label>
+                    ${renderNotesHtml()}
+                </div>
+            `;
 
-        const nameInput = itemElement.querySelector('.edit-name-input');
-        const saveBtn = itemElement.querySelector('.btn-save');
-        const cancelBtn = itemElement.querySelector('.btn-cancel');
-        nameInput.focus();
-        nameInput.select();
+            const nameInput = itemElement.querySelector('.edit-name-input');
+            const saveBtn = itemElement.querySelector('.btn-save');
+            const cancelBtn = itemElement.querySelector('.btn-cancel');
+            nameInput.focus();
+            nameInput.select();
 
-        // Save handler: rename and update notes
-        const finishSave = () => {
-            const newName = nameInput.value.trim();
-            if (!newName) {
-                nameInput.focus();
-                return;
-            }
-            // Gather updated notes
-            const noteInputs = Array.from(itemElement.querySelectorAll('.edit-note-text'));
-            const updatedNotes = noteInputs.map((input, idx) => {
-                const note = notes[idx] || {};
-                return {
-                    ...note,
-                    text: input.value
-                };
-            }).filter(n => n.text && n.text.trim());
-            // Save
-            this.saveEditWithNotes(oldName, newName, updatedNotes);
+            // Save handler: rename and update notes
+            const finishSave = () => {
+                const newName = nameInput.value.trim();
+                if (!newName) {
+                    nameInput.focus();
+                    return;
+                }
+                // Gather updated notes
+                const noteInputs = Array.from(itemElement.querySelectorAll('.edit-note-text'));
+                const updatedNotes = noteInputs.map((input, idx) => {
+                    const note = notes[idx] || {};
+                    return {
+                        ...note,
+                        text: input.value
+                    };
+                }).filter(n => n.text && n.text.trim());
+                this.saveEditWithNotes(oldName, newName, updatedNotes);
+            };
+
+            saveBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                finishSave();
+            });
+            cancelBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.loadTasksForDate();
+            });
+            nameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    finishSave();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    this.loadTasksForDate();
+                }
+            });
+
+            // Note delete buttons
+            itemElement.querySelectorAll('.edit-note-delete').forEach((btn, idx) => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    notes.splice(idx, 1);
+                    renderEditUI();
+                });
+            });
+
+            // Add note
+            const addInput = itemElement.querySelector('.edit-note-add-input');
+            const addBtn = itemElement.querySelector('.edit-note-add-btn');
+            addBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const text = addInput.value.trim();
+                if (!text) {
+                    addInput.focus();
+                    return;
+                }
+                notes.push({
+                    text,
+                    timestamp: new Date().toLocaleTimeString(),
+                    duration: null
+                });
+                renderEditUI();
+            });
+            addInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addBtn.click();
+                }
+            });
         };
 
-        saveBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            finishSave();
-        });
-        cancelBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.loadTasksForDate();
-        });
-        nameInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                finishSave();
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                this.loadTasksForDate();
-            }
-        });
-
-        // Note delete buttons
-        itemElement.querySelectorAll('.edit-note-delete').forEach((btn, idx) => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                notes.splice(idx, 1);
-                this.enterEditMode(oldName, itemElement);
-            });
-        });
-
-        // Add note
-        const addInput = itemElement.querySelector('.edit-note-add-input');
-        const addBtn = itemElement.querySelector('.edit-note-add-btn');
-        addBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const text = addInput.value.trim();
-            if (!text) {
-                addInput.focus();
-                return;
-            }
-            notes.push({
-                text,
-                timestamp: new Date().toLocaleTimeString(),
-                duration: null
-            });
-            this.enterEditMode(oldName, itemElement);
-        });
-        addInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                addBtn.click();
-            }
-        });
+        renderEditUI();
     }
 
     // Save a rename edit and notes update, auto-merge if newName exists
