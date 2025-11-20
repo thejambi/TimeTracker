@@ -243,6 +243,54 @@ body {
     box-shadow: 0 5px 15px rgba(255, 65, 108, 0.3);
 }
 
+/* Export button: neutral, small, and matches other buttons */
+.btn-export {
+    background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%);
+    color: var(--text-primary);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+
+[data-theme="dark"] .btn-export {
+    color: var(--text-primary);
+    border: 1px solid rgba(255,255,255,0.04);
+}
+
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    right: 20px;
+    bottom: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 9999;
+    pointer-events: none; /* allow clicks through when no toast */
+}
+
+.toast {
+    pointer-events: auto;
+    background: rgba(0,0,0,0.75);
+    color: white;
+    padding: 10px 14px;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    font-size: 14px;
+    opacity: 0;
+    transform: translateY(10px);
+    animation: toast-in 240ms ease forwards;
+}
+
+@keyframes toast-in {
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-out {
+    to { opacity: 0; transform: translateY(10px); }
+}
+
 /* Mute start/stop buttons in dark mode to reduce visual intensity */
 [data-theme="dark"] .btn-start {
     background: linear-gradient(135deg, rgba(86,171,47,0.12) 0%, rgba(168,230,207,0.08) 100%);

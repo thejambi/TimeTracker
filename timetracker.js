@@ -31,6 +31,8 @@ class TaskTimeTracker {
         this.themeToggle = document.getElementById('themeToggle');
         this.prevDayBtn = document.getElementById('prevDayBtn');
         this.nextDayBtn = document.getElementById('nextDayBtn');
+        this.exportBtn = document.getElementById('exportBtn');
+        this.downloadMdBtn = document.getElementById('downloadMdBtn');
     }
 
     loadTheme() {
@@ -68,9 +70,31 @@ class TaskTimeTracker {
         this.prevDayBtn.addEventListener('click', () => this.navigateDate(-1));
         this.nextDayBtn.addEventListener('click', () => this.navigateDate(1));
 
+        if (this.exportBtn) this.exportBtn.addEventListener('click', () => this.copyExportMarkdown());
+        if (this.downloadMdBtn) this.downloadMdBtn.addEventListener('click', () => this.downloadMarkdownFile());
+
         this.taskNotes.addEventListener('input', (e) => {
             this.currentNotes = e.target.value;
         });
+    }
+
+    // Download the markdown export as a .md file
+    downloadMarkdownFile() {
+        const storageKey = `tasks_${this.selectedDate}`;
+        const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        const md = this.buildExportMarkdown(tasks);
+        const blob = new Blob([md], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tasks_${this.selectedDate}.md`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
+        this.showToast('Markdown file downloaded');
     }
 
     navigateDate(days) {
@@ -477,6 +501,120 @@ class TaskTimeTracker {
             return sum + time;
         }, 0);
         this.totalTimeDisplay.textContent = this.formatTime(total);
+    }
+
+    // show a transient toast message (non-blocking)
+    showToast(message, duration = 3000) {
+        try {
+            // create container if missing
+            let container = document.querySelector('.toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.className = 'toast-container';
+                document.body.appendChild(container);
+            }
+
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            container.appendChild(toast);
+
+            // schedule removal
+            setTimeout(() => {
+                // play out animation
+                toast.style.animation = 'toast-out 240ms ease forwards';
+                setTimeout(() => {
+                    if (toast.parentNode) toast.parentNode.removeChild(toast);
+                    // if container empty, remove it
+                    if (container && container.children.length === 0 && container.parentNode) container.parentNode.removeChild(container);
+                }, 260);
+            }, duration);
+        } catch (err) {
+            // fallback to alert if DOM manipulation fails
+            try { alert(message); } catch (e) { /* ignore */ }
+        }
+    }
+
+    // Build markdown export for the selected date's tasks and copy to clipboard
+    buildExportMarkdown(tasks) {
+        // tasks: object where key is task name and value is {time, notes[]}
+        const lines = [];
+        const dateLine = `# Tasks for ${this.selectedDate}`;
+        lines.push(dateLine, '');
+
+        const entries = Object.entries(tasks);
+        if (entries.length === 0) {
+            lines.push('- No tasks tracked for this date.');
+            return lines.join('\n');
+        }
+
+        // Sort by descending time
+        entries.sort((a, b) => {
+            const ta = typeof a[1] === 'number' ? a[1] : a[1].time || 0;
+            const tb = typeof b[1] === 'number' ? b[1] : b[1].time || 0;
+            return tb - ta;
+        });
+
+        for (const [name, data] of entries) {
+            const t = typeof data === 'number' ? data : data.time || 0;
+            const timeStr = this.formatTime(t);
+            lines.push(`- **${name}** — ${timeStr}`);
+
+            const notes = (typeof data === 'object' && data.notes) ? data.notes : [];
+            for (const note of notes) {
+                // note may be {text, timestamp, duration} in our format
+                if (typeof note === 'string') {
+                    lines.push(`  - ${this.escapeHtml(note)}`);
+                } else {
+                    const ts = note.timestamp ? note.timestamp : '';
+                    const dur = note.duration ? note.duration : '';
+                    const text = note.text ? note.text : '';
+                    const meta = [ts, dur].filter(Boolean).join(' ');
+                    lines.push(`  - ${meta ? `(${meta.trim()}) ` : ''}${text}`);
+                }
+            }
+
+            lines.push('');
+        }
+
+        return lines.join('\n');
+    }
+
+    async copyExportMarkdown() {
+        const storageKey = `tasks_${this.selectedDate}`;
+        const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        const md = this.buildExportMarkdown(tasks);
+
+        // Try navigator.clipboard first
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(md);
+                this.showToast('Export copied to clipboard');
+                return;
+            }
+        } catch (err) {
+            // fall through to legacy copy
+        }
+
+        // Fallback: create a hidden textarea and execCommand
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = md;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (ok) {
+                this.showToast('Export copied to clipboard');
+            } else {
+                // As a last resort, show the markdown so user can copy manually
+                prompt('Copy the export below:', md);
+            }
+        } catch (err) {
+            prompt('Copy the export below:', md);
+        }
     }
 
     formatTime(milliseconds) {
