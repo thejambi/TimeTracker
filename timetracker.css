@@ -2,8 +2,9 @@
     --bg-gradient-start: #2c3e50;
     --bg-gradient-end: #34495e;
     --container-bg: #2c3e50;
-    --header-gradient-start: #3498db;
-    --header-gradient-end: #2980b9;
+    /* Softer, muted header gradient for dark mode */
+    --header-gradient-start: rgba(52,152,219,0.12);
+    --header-gradient-end: rgba(41,128,185,0.08);
     --text-primary: #ecf0f1;
     --text-secondary: #bdc3c7;
     --text-accent: #3498db;
@@ -13,13 +14,15 @@
     --task-bg: #34495e;
     --task-border: #4a5f7a;
     --task-hover-border: #3498db;
-    --current-task-bg: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+    /* Softer, low-contrast background for the current task box in dark mode */
+    --current-task-bg: linear-gradient(135deg, rgba(230,126,34,0.08) 0%, rgba(211,84,0,0.06) 100%);
     --notes-bg: rgba(52, 73, 94, 0.8);
     --notes-focus-bg: #34495e;
     --section-border: #3498db;
     --no-tasks-bg: #34495e;
     --no-tasks-border: #4a5f7a;
-    --total-time-bg: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%);
+    /* Muted total-time background (soft purple) */
+    --total-time-bg: linear-gradient(135deg, rgba(142,68,173,0.08) 0%, rgba(155,89,182,0.06) 100%);
 }
 
 [data-theme="light"] {
@@ -240,6 +243,27 @@ body {
     box-shadow: 0 5px 15px rgba(255, 65, 108, 0.3);
 }
 
+/* Mute start/stop buttons in dark mode to reduce visual intensity */
+[data-theme="dark"] .btn-start {
+    background: linear-gradient(135deg, rgba(86,171,47,0.12) 0%, rgba(168,230,207,0.08) 100%);
+    color: white;
+}
+
+[data-theme="dark"] .btn-start:hover {
+    transform: none;
+    box-shadow: 0 5px 15px rgba(86,171,47,0.08);
+}
+
+[data-theme="dark"] .btn-stop {
+    background: linear-gradient(135deg, rgba(255,65,108,0.10) 0%, rgba(255,75,43,0.06) 100%);
+    color: white;
+}
+
+[data-theme="dark"] .btn-stop:hover {
+    transform: none;
+    box-shadow: 0 5px 15px rgba(255,65,108,0.07);
+}
+
 .btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -272,8 +296,9 @@ body {
     margin-bottom: 10px;
 }
 
+/* use a softer amber for dark theme to reduce visual intensity */
 [data-theme="dark"] .current-task h3 {
-    color: #f39c12;
+    color: #d99a6a; /* softer, muted amber */
 }
 
 .timer-display {
@@ -284,8 +309,9 @@ body {
     margin-bottom: 20px;
 }
 
+/* soften timer color in dark mode to match the current-task box */
 [data-theme="dark"] .timer-display {
-    color: #f39c12;
+    color: #d99a6a;
 }
 
 .notes-section {
@@ -300,8 +326,9 @@ body {
     text-align: left;
 }
 
+/* keep the notes label color consistent but slightly muted in dark theme */
 [data-theme="dark"] .notes-label {
-    color: #f39c12;
+    color: #d99a6a;
 }
 
 .notes-textarea {
@@ -320,8 +347,8 @@ body {
 
 .notes-textarea:focus {
     outline: none;
-    border-color: #d2691e;
-    box-shadow: 0 0 0 3px rgba(210, 105, 30, 0.1);
+    border-color: #d99a6a; /* softer border on focus */
+    box-shadow: 0 0 0 3px rgba(217, 154, 106, 0.09);
     background: var(--notes-focus-bg);
 }
 
