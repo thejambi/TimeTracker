@@ -164,10 +164,13 @@
             background: var(--input-bg);
             border: 1px solid var(--input-border);
             border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
-            font-size: 12px;
+            padding: 12px 15px;
+            margin: 20px auto 0; /* top margin now that it's at the bottom, center horizontally */
+            font-size: 13px;
             color: var(--text-secondary);
+            text-align: center;
+            max-width: 720px;
+            opacity: 0.95;
         }
 
         .shortcuts-info strong {
@@ -427,24 +430,6 @@
             font-family: 'Courier New', monospace;
         }
 
-        .keyboard-hint {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: var(--input-bg);
-            border: 1px solid var(--input-border);
-            border-radius: 8px;
-            padding: 10px;
-            font-size: 11px;
-            color: var(--text-secondary);
-            opacity: 0.8;
-            transition: opacity 0.3s ease;
-        }
-
-        .keyboard-hint:hover {
-            opacity: 1;
-        }
-
         @media (max-width: 600px) {
             .input-group {
                 flex-direction: column;
@@ -468,10 +453,6 @@
                 position: static;
                 margin-bottom: 10px;
             }
-
-            .keyboard-hint {
-                display: none;
-            }
         }
     </style>
 </head>
@@ -488,13 +469,6 @@
         </div>
 
         <div class="main-content">
-            <div class="shortcuts-info">
-                <strong>Keyboard Shortcuts:</strong>
-                Ctrl+Space: Start/Stop •
-                Ctrl+Enter: Start Task •
-                Escape: Clear Input •
-                Ctrl+D: Toggle Theme
-            </div>
 
             <div class="task-input-section">
                 <div class="input-group">
@@ -538,11 +512,15 @@
                 <h3>Total Time Today</h3>
                 <div id="totalTimeDisplay" class="total-time-display">00:00:00</div>
             </div>
+            
+            <div class="shortcuts-info">
+                <strong>Keyboard Shortcuts:</strong>
+                Ctrl+Space: Start/Stop •
+                Ctrl+Enter: Start Task •
+                Escape: Clear Input •
+                Ctrl+D: Toggle Theme
+            </div>
         </div>
-    </div>
-
-    <div class="keyboard-hint">
-        💡 Press Ctrl+Space to quickly start/stop tasks
     </div>
 
     <script>
