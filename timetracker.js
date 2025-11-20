@@ -299,7 +299,10 @@ class TaskTimeTracker {
                     <div class="task-item" data-task-name="${this.escapeHtml(name)}">
                         <div class="task-header">
                             <div class="task-name">${this.escapeHtml(name)}</div>
-                            <div class="task-time">${this.formatTime(time)}</div>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div class="task-time">${this.formatTime(time)}</div>
+                                <button class="edit-btn" title="Edit">✏️</button>
+                            </div>
                         </div>
                         ${notesHtml}
                     </div>
@@ -308,11 +311,145 @@ class TaskTimeTracker {
 
         // Add event listeners to task items
         this.taskList.querySelectorAll('.task-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const taskName = item.getAttribute('data-task-name');
-                this.selectTask(taskName);
-            });
+                // clicking the task selects it (for starting)
+                item.addEventListener('click', () => {
+                    // If this item is in edit mode, ignore clicks so it doesn't steal focus
+                    if (item.classList.contains('edit-mode')) return;
+                    const taskName = item.getAttribute('data-task-name');
+                    this.selectTask(taskName);
+                });
+                // edit button: opens inline rename
+                const editBtn = item.querySelector('.edit-btn');
+                if (editBtn) {
+                    editBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const taskName = item.getAttribute('data-task-name');
+                        this.enterEditMode(taskName, item);
+                    });
+                }
         });
+    }
+
+    // Begin inline edit for a task (rename only, auto-merge if target exists)
+    enterEditMode(oldName, itemElement) {
+        // mark element as edit-mode
+        itemElement.classList.add('edit-mode');
+
+        // Fetch existing task data for the selected date
+        const storageKey = `tasks_${this.selectedDate}`;
+        const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        let data = tasks[oldName];
+        if (typeof data === 'number') data = { time: data, notes: [] };
+
+        const timeStr = this.formatTime(typeof data === 'number' ? data : data.time);
+
+        // replace inner HTML with a minimal edit form (name + time display + actions)
+        itemElement.innerHTML = `
+            <div class="task-header">
+                <div style="flex:1">
+                    <input class="edit-name-input" value="${this.escapeHtml(oldName)}" />
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div class="task-time">${timeStr}</div>
+                </div>
+            </div>
+            <div class="edit-actions">
+                <button class="btn-save">Save</button>
+                <button class="btn-cancel">Cancel</button>
+            </div>
+        `;
+
+        const input = itemElement.querySelector('.edit-name-input');
+        const saveBtn = itemElement.querySelector('.btn-save');
+        const cancelBtn = itemElement.querySelector('.btn-cancel');
+
+        input.focus();
+        input.select();
+
+        const finishSave = () => {
+            const newName = input.value.trim();
+            if (!newName) {
+                input.focus();
+                return;
+            }
+            this.saveEdit(oldName, newName);
+        };
+
+        saveBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            finishSave();
+        });
+
+        cancelBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // re-render list to restore original UI
+            this.loadTasksForDate();
+        });
+
+        // keyboard shortcuts
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                finishSave();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                this.loadTasksForDate();
+            }
+        });
+    }
+
+    // Save a rename edit, auto-merge if newName exists
+    saveEdit(oldName, newName) {
+        if (!oldName) return;
+        const storageKey = `tasks_${this.selectedDate}`;
+        const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+
+        // normalize old data
+        let oldData = tasks[oldName];
+        if (oldData === undefined) return this.loadTasksForDate();
+        if (typeof oldData === 'number') oldData = { time: oldData, notes: [] };
+
+        // If newName equals oldName - nothing to do
+        if (newName === oldName) return this.loadTasksForDate();
+
+        // If target exists, merge: sum times and concat notes
+        let targetData = tasks[newName];
+        if (targetData === undefined) {
+            // simple rename
+            tasks[newName] = oldData;
+        } else {
+            if (typeof targetData === 'number') targetData = { time: targetData, notes: [] };
+            // merge
+            const merged = {
+                time: (targetData.time || 0) + (oldData.time || 0),
+                notes: (targetData.notes || []).concat(oldData.notes || [])
+            };
+            tasks[newName] = merged;
+        }
+
+        // remove old key
+        delete tasks[oldName];
+
+        localStorage.setItem(storageKey, JSON.stringify(tasks));
+
+        // If active task was renamed, update currentTask
+        if (this.currentTask === oldName) {
+            this.currentTask = newName;
+            // update UI if current task display exists
+            if (this.currentTaskName) this.currentTaskName.textContent = newName;
+            // keep the start/stop bar in-sync (taskInput shows the current task name even when disabled)
+            if (this.taskInput) this.taskInput.value = newName;
+            // update page title to reflect the new name
+            this.updatePageTitle();
+        }
+
+        // If the task input currently shows the old name (was selected but not active), update it too
+        if (this.taskInput && this.taskInput.value === oldName) {
+            this.taskInput.value = newName;
+        }
+
+        // re-render
+        this.loadTasksForDate();
     }
 
     escapeHtml(text) {
@@ -352,5 +489,5 @@ class TaskTimeTracker {
     }
 }
 
-// Initialize the app
-const taskTracker = new TaskTimeTracker();
+// Initialize the app and expose for tests
+window.taskTracker = new TaskTimeTracker();

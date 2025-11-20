@@ -1,0 +1,11 @@
+{
+  "name": "timetracker",
+  "version": "1.0.0",
+  "description": "Minimal task time tracker app",
+  "scripts": {
+    "test": "node tests/run_tests.js"
+  },
+  "devDependencies": {
+    "jsdom": "^22.1.0"
+  }
+}

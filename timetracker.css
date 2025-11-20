@@ -362,6 +362,68 @@ body {
     box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
 }
 
+/* Edit controls */
+.task-header .edit-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 6px;
+    border-radius: 6px;
+}
+
+.task-header .edit-btn:hover {
+    color: var(--text-accent);
+    background: rgba(52,73,94,0.06);
+}
+
+.edit-mode .edit-name-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 2px solid var(--input-border);
+    border-radius: 8px;
+    margin-top: 8px;
+    font-size: 15px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+}
+
+.edit-mode .edit-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.edit-mode .btn-save {
+    background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: none;
+}
+
+.edit-mode .btn-cancel {
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--input-border);
+}
+
+/* Subtle visual cue when a task is in edit mode */
+.task-item.edit-mode {
+    border-color: var(--text-accent);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    transform: none; /* avoid elevated hover transform while editing */
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+}
+
+.task-item.edit-mode .task-name {
+    font-weight: 700;
+}
+
 .task-header {
     display: flex;
     justify-content: space-between;
