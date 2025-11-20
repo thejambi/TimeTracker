@@ -15,6 +15,38 @@ class TaskTimeTracker {
 		this.setupKeyboardShortcuts();
 		this.updateDateSelector();
 		this.updateDateNavButtons();
+
+		// Ask to resume previous timer if one was in progress
+		const running = JSON.parse(localStorage.getItem('timetracker-running') || 'null');
+		if (running && running.task && running.startTime && running.date === this.selectedDate) {
+			setTimeout(() => {
+				const resume = confirm(`Resume tracking for "${running.task}" started at ${new Date(running.startTime).toLocaleTimeString()}?`);
+				if (resume) {
+					this.currentTask = running.task;
+					this.startTime = running.startTime;
+					this.currentNotes = running.notes || '';
+					this.currentTaskName.textContent = running.task;
+					this.currentTaskDiv.classList.add('active');
+					this.taskNotes.value = this.currentNotes;
+					this.startBtn.disabled = true;
+					this.stopBtn.disabled = false;
+					this.taskInput.disabled = true;
+					this.timerInterval = setInterval(() => this.updateTimer(), 1000);
+					this.updateTimer();
+				} else {
+					localStorage.removeItem('timetracker-running');
+				}
+			}, 200);
+		}
+
+		// Warn before closing if a task is running
+		window.addEventListener('beforeunload', (e) => {
+			if (this.currentTask && this.startTime) {
+				e.preventDefault();
+				e.returnValue = '';
+				return '';
+			}
+		});
 	}
 
 	initializeElements() {
@@ -225,6 +257,14 @@ class TaskTimeTracker {
 		this.stopBtn.disabled = false;
 		this.taskInput.disabled = true;
 
+		// Save running task info for resume
+		localStorage.setItem('timetracker-running', JSON.stringify({
+			task: this.currentTask,
+			startTime: this.startTime,
+			notes: this.currentNotes,
+			date: this.selectedDate
+		}));
+
 		this.timerInterval = setInterval(() => this.updateTimer(), 1000);
 		this.updateTimer();
 	}
@@ -237,21 +277,24 @@ class TaskTimeTracker {
 
 		this.saveTaskTime(this.currentTask, duration, this.currentNotes);
 
-		this.currentTask = null;
-		this.startTime = null;
-		this.currentNotes = '';
-		clearInterval(this.timerInterval);
+	this.currentTask = null;
+	this.startTime = null;
+	this.currentNotes = '';
+	clearInterval(this.timerInterval);
 
-		this.currentTaskDiv.classList.remove('active');
-		this.startBtn.disabled = false;
-		this.stopBtn.disabled = true;
-		this.taskInput.disabled = false;
-		this.taskInput.value = '';
-		this.taskNotes.value = '';
+	// Remove running task info
+	localStorage.removeItem('timetracker-running');
 
-		this.updatePageTitle();
-		this.loadTasksForDate();
-		this.taskInput.focus();
+	this.currentTaskDiv.classList.remove('active');
+	this.startBtn.disabled = false;
+	this.stopBtn.disabled = true;
+	this.taskInput.disabled = false;
+	this.taskInput.value = '';
+	this.taskNotes.value = '';
+
+	this.updatePageTitle();
+	this.loadTasksForDate();
+	this.taskInput.focus();
 	}
 
 	updateTimer() {
