@@ -10,34 +10,13 @@ class TaskTimeTracker {
 
 		this.initializeElements();
 		this.loadTheme();
-		this.loadTasksForDate();
+		// tasks will be loaded after storage migration in startWithStorage()
 		this.setupEventListeners();
 		this.setupKeyboardShortcuts();
 		this.updateDateSelector();
 		this.updateDateNavButtons();
 
-		// Ask to resume previous timer if one was in progress
-		const running = JSON.parse(localStorage.getItem('timetracker-running') || 'null');
-		if (running && running.task && running.startTime && running.date === this.selectedDate) {
-			setTimeout(() => {
-				const resume = confirm(`Resume tracking for "${running.task}" started at ${new Date(running.startTime).toLocaleTimeString()}?`);
-				if (resume) {
-					this.currentTask = running.task;
-					this.startTime = running.startTime;
-					this.currentNotes = running.notes || '';
-					this.currentTaskName.textContent = running.task;
-					this.currentTaskDiv.classList.add('active');
-					this.taskNotes.value = this.currentNotes;
-					this.startBtn.disabled = true;
-					this.stopBtn.disabled = false;
-					this.taskInput.disabled = true;
-					this.timerInterval = setInterval(() => this.updateTimer(), 1000);
-					this.updateTimer();
-				} else {
-					localStorage.removeItem('timetracker-running');
-				}
-			}, 200);
-		}
+		// running state and tasks are handled after storage migration in startWithStorage()
 
 		// Warn before closing if a task is running
 		window.addEventListener('beforeunload', (e) => {
@@ -68,15 +47,15 @@ class TaskTimeTracker {
 		this.headerTitle = document.querySelector('.header h1');
 	}
 
-	loadTheme() {
-		const savedTheme = localStorage.getItem('timetracker-theme') || 'dark';
+	async loadTheme() {
+		const savedTheme = (await Storage.getItem('timetracker-theme')) || 'dark';
 		this.setTheme(savedTheme);
 	}
 
-	setTheme(theme) {
+	async setTheme(theme) {
 		document.body.setAttribute('data-theme', theme);
 		this.themeToggle.textContent = theme === 'dark' ? '🌙 Dark' : '☀️ Light';
-		localStorage.setItem('timetracker-theme', theme);
+		await Storage.setItem('timetracker-theme', theme);
 	}
 
 	toggleTheme() {
@@ -123,9 +102,8 @@ class TaskTimeTracker {
 	}
 
 	// Download the markdown export as a .md file
-	downloadMarkdownFile() {
-		const storageKey = `tasks_${this.selectedDate}`;
-		const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+	async downloadMarkdownFile() {
+		const tasks = await Storage.loadTasksForDate(this.selectedDate) || {};
 		const md = this.buildExportMarkdown(tasks);
 		const blob = new Blob([md], { type: 'text/markdown' });
 		const url = URL.createObjectURL(blob);
@@ -234,7 +212,7 @@ class TaskTimeTracker {
 		}
 	}
 
-	startTask() {
+	async startTask() {
 		const taskName = this.taskInput.value.trim();
 		if (!taskName) {
 			this.taskInput.focus();
@@ -258,32 +236,32 @@ class TaskTimeTracker {
 		this.taskInput.disabled = true;
 
 		// Save running task info for resume
-		localStorage.setItem('timetracker-running', JSON.stringify({
+		await Storage.saveRunningState({
 			task: this.currentTask,
 			startTime: this.startTime,
 			notes: this.currentNotes,
 			date: this.selectedDate
-		}));
+		});
 
 		this.timerInterval = setInterval(() => this.updateTimer(), 1000);
 		this.updateTimer();
 	}
 
-	stopTask() {
+	async stopTask() {
 		if (!this.currentTask || !this.startTime) return;
 
 		const endTime = Date.now();
 		const duration = endTime - this.startTime;
 
-		this.saveTaskTime(this.currentTask, duration, this.currentNotes);
+		await this.saveTaskTime(this.currentTask, duration, this.currentNotes);
 
 	this.currentTask = null;
 	this.startTime = null;
 	this.currentNotes = '';
 	clearInterval(this.timerInterval);
 
-	// Remove running task info
-	localStorage.removeItem('timetracker-running');
+		// Remove running task info
+		await Storage.removeRunningState();
 
 	this.currentTaskDiv.classList.remove('active');
 	this.startBtn.disabled = false;
@@ -292,8 +270,8 @@ class TaskTimeTracker {
 	this.taskInput.value = '';
 	this.taskNotes.value = '';
 
-	this.updatePageTitle();
-	this.loadTasksForDate();
+		this.updatePageTitle();
+		await this.loadTasksForDate();
 	this.taskInput.focus();
 	}
 
@@ -305,9 +283,9 @@ class TaskTimeTracker {
 		this.updatePageTitle();
 	}
 
-	saveTaskTime(taskName, duration, notes) {
+	async saveTaskTime(taskName, duration, notes) {
 		const storageKey = `tasks_${this.selectedDate}`;
-		let tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+		let tasks = await Storage.loadTasksForDate(this.selectedDate) || {};
 
 		if (!tasks[taskName]) {
 			tasks[taskName] = {
@@ -336,12 +314,11 @@ class TaskTimeTracker {
 			});
 		}
 
-		localStorage.setItem(storageKey, JSON.stringify(tasks));
+		await Storage.saveTasksForDate(this.selectedDate, tasks);
 	}
 
-	loadTasksForDate() {
-		const storageKey = `tasks_${this.selectedDate}`;
-		const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+	async loadTasksForDate() {
+		const tasks = await Storage.loadTasksForDate(this.selectedDate) || {};
 
 		this.renderTaskList(tasks);
 		this.updateTotalTime(tasks);
@@ -422,10 +399,9 @@ class TaskTimeTracker {
 		});
 	}
 	// Inline adjust mode for task time
-	enterAdjustMode(taskName, itemElement) {
+	async enterAdjustMode(taskName, itemElement) {
 		itemElement.classList.add('adjust-mode');
-		const storageKey = `tasks_${this.selectedDate}`;
-		const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+		const tasks = await Storage.loadTasksForDate(this.selectedDate) || {};
 		let data = tasks[taskName];
 		if (typeof data === 'number') data = { time: data, notes: [] };
 		const timeMs = typeof data === 'number' ? data : data.time;
@@ -478,16 +454,15 @@ class TaskTimeTracker {
 	}
 
 	// Save adjusted time for a task
-	saveAdjustedTime(taskName, ms) {
-		const storageKey = `tasks_${this.selectedDate}`;
-		const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+	async saveAdjustedTime(taskName, ms) {
+		const tasks = await Storage.loadTasksForDate(this.selectedDate) || {};
 		let data = tasks[taskName];
 		if (typeof data === 'number') data = { time: data, notes: [] };
 		data.time = ms;
 		tasks[taskName] = data;
-		localStorage.setItem(storageKey, JSON.stringify(tasks));
+		await Storage.saveTasksForDate(this.selectedDate, tasks);
 		this.showToast('Task time adjusted');
-		this.loadTasksForDate();
+		await this.loadTasksForDate();
 	}
 
 	// Parse HH:MM:SS to ms
@@ -500,10 +475,9 @@ class TaskTimeTracker {
 	}
 
 	// Inline edit mode for a task: rename and edit notes
-	enterEditMode(oldName, itemElement) {
+	async enterEditMode(oldName, itemElement) {
 		itemElement.classList.add('edit-mode');
-		const storageKey = `tasks_${this.selectedDate}`;
-		const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+		const tasks = await Storage.loadTasksForDate(this.selectedDate) || {};
 		let data = tasks[oldName];
 		if (typeof data === 'number') data = { time: data, notes: [] };
 		const timeStr = this.formatTime(data.time);
@@ -635,10 +609,10 @@ class TaskTimeTracker {
 	}
 
 	// Save a rename edit and notes update, auto-merge if newName exists
-	saveEditWithNotes(oldName, newName, updatedNotes) {
+	async saveEditWithNotes(oldName, newName, updatedNotes) {
 		if (!oldName) return;
 		const storageKey = `tasks_${this.selectedDate}`;
-		const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+		const tasks = await Storage.loadTasksForDate(this.selectedDate) || {};
 		let oldData = tasks[oldName];
 		if (oldData === undefined) return this.loadTasksForDate();
 		if (typeof oldData === 'number') oldData = { time: oldData, notes: [] };
@@ -647,8 +621,8 @@ class TaskTimeTracker {
 		if (newName === oldName) {
 			oldData.notes = updatedNotes;
 			tasks[oldName] = oldData;
-			localStorage.setItem(storageKey, JSON.stringify(tasks));
-			this.loadTasksForDate();
+			await Storage.saveTasksForDate(this.selectedDate, tasks);
+			await this.loadTasksForDate();
 			return;
 		}
 
@@ -668,7 +642,7 @@ class TaskTimeTracker {
 			tasks[newName] = merged;
 		}
 		delete tasks[oldName];
-		localStorage.setItem(storageKey, JSON.stringify(tasks));
+		await Storage.saveTasksForDate(this.selectedDate, tasks);
 
 		// If active task was renamed, update currentTask
 		if (this.currentTask === oldName) {
@@ -680,14 +654,14 @@ class TaskTimeTracker {
 		if (this.taskInput && this.taskInput.value === oldName) {
 			this.taskInput.value = newName;
 		}
-		this.loadTasksForDate();
+		await this.loadTasksForDate();
 	}
 
 	// Save a rename edit, auto-merge if newName exists
-	saveEdit(oldName, newName) {
+	async saveEdit(oldName, newName) {
 		if (!oldName) return;
 		const storageKey = `tasks_${this.selectedDate}`;
-		const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+		const tasks = await Storage.loadTasksForDate(this.selectedDate) || {};
 
 		// normalize old data
 		let oldData = tasks[oldName];
@@ -715,7 +689,7 @@ class TaskTimeTracker {
 		// remove old key
 		delete tasks[oldName];
 
-		localStorage.setItem(storageKey, JSON.stringify(tasks));
+		await Storage.saveTasksForDate(this.selectedDate, tasks);
 
 		// If active task was renamed, update currentTask
 		if (this.currentTask === oldName) {
@@ -734,7 +708,7 @@ class TaskTimeTracker {
 		}
 
 		// re-render
-		this.loadTasksForDate();
+		await this.loadTasksForDate();
 	}
 
 	escapeHtml(text) {
@@ -842,8 +816,7 @@ class TaskTimeTracker {
 	}
 
 	async copyExportMarkdown() {
-		const storageKey = `tasks_${this.selectedDate}`;
-		const tasks = JSON.parse(localStorage.getItem(storageKey) || '{}');
+		const tasks = await Storage.loadTasksForDate(this.selectedDate) || {};
 		const md = this.buildExportMarkdown(tasks);
 
 		// Try navigator.clipboard first
@@ -878,6 +851,39 @@ class TaskTimeTracker {
 		}
 	}
 
+	// Initialize storage (migrate from localStorage) and load tasks + running state
+	async startWithStorage() {
+		// Migrate any existing localStorage keys into LocalForage
+		await Storage.migrateFromLocalStorage();
+
+		// Load today's tasks (or selected date)
+		await this.loadTasksForDate();
+
+		// Check running state and offer resume
+		const running = await Storage.loadRunningState();
+
+		if (running && running.task && running.startTime && running.date === this.selectedDate) {
+			setTimeout(async () => {
+				const resume = confirm(`Resume tracking for "${running.task}" started at ${new Date(running.startTime).toLocaleTimeString()}?`);
+				if (resume) {
+					this.currentTask = running.task;
+					this.startTime = running.startTime;
+					this.currentNotes = running.notes || '';
+					this.currentTaskName.textContent = running.task;
+					this.currentTaskDiv.classList.add('active');
+					this.taskNotes.value = this.currentNotes;
+					this.startBtn.disabled = true;
+					this.stopBtn.disabled = false;
+					this.taskInput.disabled = true;
+					this.timerInterval = setInterval(() => this.updateTimer(), 1000);
+					this.updateTimer();
+				} else {
+					await Storage.removeRunningState();
+				}
+			}, 200);
+		}
+	}
+
 	formatTime(milliseconds) {
 		const seconds = Math.floor(milliseconds / 1000);
 		const hours = Math.floor(seconds / 3600);
@@ -889,4 +895,6 @@ class TaskTimeTracker {
 }
 
 // Initialize the app and expose for tests
-window.taskTracker = new TaskTimeTracker();
+const _tt = new TaskTimeTracker();
+window.taskTracker = _tt;
+_tt.startWithStorage();

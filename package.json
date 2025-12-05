@@ -3,9 +3,16 @@
   "version": "1.0.0",
   "description": "Minimal task time tracker app",
   "scripts": {
-    "test": "node tests/run_tests.js"
+    "test": "node tests/run_tests.js",
+    "build": "esbuild storage.esm.js --bundle --outfile=storage.bundle.js --minify --platform=browser",
+    "prestart": "npm run build",
+    "start": "npx http-server -c-1 -p 8000"
+  },
+  "dependencies": {
+    "localforage": "^1.10.0"
   },
   "devDependencies": {
-    "jsdom": "^22.1.0"
+    "jsdom": "^22.1.0",
+    "esbuild": "^0.18.0"
   }
 }
